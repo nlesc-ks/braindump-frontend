@@ -8,7 +8,7 @@ tags:
 This is a prototype for a knowledge base for the [Netherlands eScience Center](https://esciencecenter.nl).
 ## How does this work?
 ### In a nutshell
-We render a website from a collection of markdown files. The files can link each other using Wiki-style links (the ones with the `[[<filename>]]` structure). The website is searchable, and additionally generates a graph map and a list of incoming and outcoming links.
+We render a website from a collection of markdown files. The files can link each other using Wiki-style links (the ones with the `[[<filename>]]` structure). The website is searchable, and additionally generates a graph map and a list of incoming and outgoing links.
 
 All of this will be familiar to Obsidian users. Actually, the `./contents` folder can be opened and managed locally as an Obsidian vault.
 ### For more details
@@ -23,6 +23,3 @@ The advantages of this approach are manifold:
 - The website can be updated by anyone in a straightforward way via pull requests to GitHub
 ## Information for authors
 Want to make an edition? Feel free to open a pull request at [our repo](https://github.com/PabRod/quartz-test).
-
-## Test
-[[Automatic differentiation]]
