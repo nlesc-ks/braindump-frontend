@@ -1,6 +1,5 @@
 ---
-title: Information
-draft: false
+title: About this site
 ---
 
 This links to [[index]].
