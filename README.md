@@ -5,7 +5,7 @@ Navigate the knowledge base using the search bar, the graph map, or the table of
 ## For authors
 To contribute to this knowledge base:
 
-- Fork [our repo](https://github.com/PabRod/quartz-test)
+- Fork [our repo](https://github.com/nlesc-ks/braindump-frontend)
 - Add/edit the markdown files at `./content/`
   - The files are plain markdown with Obsidian flavour. Using [Obsidian](https://obsidian.md) is recommended, though not necessary
   - You can link to other markdown files using `[[<filename>]]` syntax
@@ -34,7 +34,7 @@ The advantages of this approach are manifold:
 - The website can be updated by anyone in a straightforward way via pull requests to GitHub
 
 ## Information for authors
-Want to make an edition? Feel free to open a pull request at [our repo](https://github.com/PabRod/quartz-test).
+Want to make an edition? Feel free to open a pull request at [our repo](https://github.com/nlesc-ks/braindump-frontend).
 
 --
 
