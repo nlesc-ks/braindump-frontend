@@ -1,3 +1,16 @@
+# Quickstart
+## For readers
+Navigate the knowledge base using the search bar, the graph map, or the table of contents.
+
+## For authors
+To contribute to this knowledge base:
+
+- Fork [our repo](https://github.com/PabRod/quartz-test)
+- Add/edit the markdown files at `./content/`
+  - The files are plain markdown with Obsidian flavour. Using [Obsidian](https://obsidian.md) is recommended, though not necessary
+  - You can link to other markdown files using `[[<filename>]]` syntax
+- Submit a pull request
+
 # What is this?
 This is a prototype for a knowledge base for the [Netherlands eScience Center](https://esciencecenter.nl).
 
