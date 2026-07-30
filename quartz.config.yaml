@@ -7,7 +7,7 @@ configuration:
   analytics:
     provider: plausible
   locale: en-US
-  baseUrl: pabrod.github.io/quartz-test
+  baseUrl: nlesc-ks.github.io/braindump-frontend
   ignorePatterns:
     - private
     - templates
