@@ -1,19 +1,16 @@
 name: Deploy Quartz site to GitHub Pages
-
 on:
   push:
     branches:
       - v5
-
+      - deploy-from-braindump # debugging it now
 permissions:
   contents: read
   pages: write
   id-token: write
-
 concurrency:
   group: "pages"
   cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,6 +18,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Fetch all history for git info
+      - name: Checkout content
+        uses: actions/checkout@v6
+        with:
+          repository: nlesc-ks/braindump
+          token: ${{ secrets.BRAINDUMP_PAT }}
+          path: content
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -48,7 +52,6 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
-
   deploy:
     needs: build
     environment:
