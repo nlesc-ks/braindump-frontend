@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - v5
-      - deploy-from-braindump # debugging it now
 permissions:
   contents: read
   pages: write
