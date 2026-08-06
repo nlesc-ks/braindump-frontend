@@ -21,6 +21,10 @@ on:
           - drop-uppercase-dupes
           - drop-odd-aliases
           - both
+      content_subset:
+        description: "Comma-separated content filenames to keep (empty = all). Use to replay an older content state."
+        type: string
+        default: ""
       deploy:
         description: "Actually deploy to Pages (a success publishes the site)"
         type: boolean
@@ -35,9 +39,16 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
-# `inputs` is null on a push event, so both fall back to a plain build.
+# `inputs` is null on a push event. This workflow does not live on the default
+# branch, so workflow_dispatch is unavailable and push runs carry the settings:
+# change the fallbacks below and push to run a different experiment.
+#
+# Current experiment: replay the content state of the last successful deploy
+# (Aug 4, "Found 2 input files") to see whether that artifact also contained a
+# case collision (README.html + readme.html).
 env:
   MUTATE: ${{ inputs.mutate || 'none' }}
+  CONTENT_SUBSET: ${{ inputs.content_subset || 'README.md,marimo.md' }}
 
 jobs:
   build:
@@ -55,6 +66,20 @@ jobs:
           path: content
           fetch-depth: 0
 
+      - name: Restrict content to subset
+        if: env.CONTENT_SUBSET != ''
+        run: |
+          cd content
+          echo "keeping: $CONTENT_SUBSET"
+          find . -name '*.md' -print0 | while IFS= read -r -d '' f; do
+            case ",$CONTENT_SUBSET," in
+              *",$(basename "$f"),"*) echo "keep $f" ;;
+              *) echo "drop $f"; rm -f "$f" ;;
+            esac
+          done
+          echo "--- remaining .md files ---"
+          find . -name '*.md' | sort
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -65,17 +90,19 @@ jobs:
       - name: Install Quartz plugins
         run: npx quartz plugin install
 
-      # Plugin versions are unpinned (no quartz.lock.json), so record exactly
-      # what got installed. This is how we detect drift vs. the Aug 4 build.
+      # `quartz plugin install` is a no-op here (no quartz.lock.json), so plugins
+      # resolve from package.json through npm ci. Record versions to stdout as
+      # well as the summary, since the logs API cannot read step summaries.
       - name: Record installed plugin versions
         run: |
+          find .quartz/plugins node_modules/@quartz-community node_modules/@quartz-themes \
+            -maxdepth 3 -name package.json 2>/dev/null \
+            | xargs -r -n1 jq -r '"\(.name)@\(.version)"' 2>/dev/null \
+            | sort -u | tee /tmp/plugins.txt
           {
             echo "## Installed @quartz-* packages"
             echo '```'
-            find .quartz/plugins node_modules/@quartz-community node_modules/@quartz-themes \
-              -maxdepth 3 -name package.json 2>/dev/null \
-              | xargs -r -n1 jq -r '"\(.name)@\(.version)"' 2>/dev/null \
-              | sort -u
+            cat /tmp/plugins.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
