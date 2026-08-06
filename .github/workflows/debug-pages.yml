@@ -1,0 +1,170 @@
+name: Debug Pages deploy
+
+# Diagnostic workflow: builds the site, dumps everything we can learn about the
+# artifact, optionally mutates public/ to test a hypothesis, then deploys and
+# reports the *raw* Pages deployment status (not the action's translation of it).
+
+on:
+  # Runs on push to the debug branch so it never has to live on v5.
+  # A push run always uses mutate=none and skips the deploy job.
+  push:
+    branches:
+      - debug-pages
+  workflow_dispatch:
+    inputs:
+      mutate:
+        description: "Change public/ before uploading"
+        type: choice
+        default: none
+        options:
+          - none
+          - drop-uppercase-dupes
+          - drop-odd-aliases
+          - both
+      deploy:
+        description: "Actually deploy to Pages (a success publishes the site)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+# `inputs` is null on a push event, so both fall back to a plain build.
+env:
+  MUTATE: ${{ inputs.mutate || 'none' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Checkout content
+        uses: actions/checkout@v6
+        with:
+          repository: nlesc-ks/braindump
+          token: ${{ secrets.BRAINDUMP_PAT }}
+          path: content
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Quartz plugins
+        run: npx quartz plugin install
+
+      # Plugin versions are unpinned (no quartz.lock.json), so record exactly
+      # what got installed. This is how we detect drift vs. the Aug 4 build.
+      - name: Record installed plugin versions
+        run: |
+          {
+            echo "## Installed @quartz-* packages"
+            echo '```'
+            find .quartz/plugins node_modules/@quartz-community node_modules/@quartz-themes \
+              -maxdepth 3 -name package.json 2>/dev/null \
+              | xargs -r -n1 jq -r '"\(.name)@\(.version)"' 2>/dev/null \
+              | sort -u
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record content inputs
+        run: |
+          {
+            echo "## content/ source files"
+            echo '```'
+            find content -name '*.md' | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build Quartz
+        run: npx quartz build
+
+      - name: Inspect public/ (pre-mutation)
+        run: .github/scripts/inspect-public.sh "pre-mutation"
+
+      - name: Mutate public/
+        if: env.MUTATE != 'none'
+        run: |
+          cd public
+          case "$MUTATE" in
+            drop-uppercase-dupes|both)
+              echo "--- dropping non-lowercase files that have a lowercase twin"
+              find . -type f | while read -r f; do
+                lower=$(printf '%s' "$f" | tr 'A-Z' 'a-z')
+                if [ "$f" != "$lower" ] && [ -e "$lower" ]; then
+                  echo "rm $f  (twin: $lower)"
+                  rm -f "$f"
+                fi
+              done
+              ;;
+          esac
+          case "$MUTATE" in
+            drop-odd-aliases|both)
+              echo "--- dropping paths with doubled dots or non-ASCII characters"
+              find . -type f | grep -E '\.\.' | while read -r f; do
+                echo "rm $f  (doubled dot)"; rm -f "$f"
+              done
+              find . -type f | LC_ALL=C grep '[^ -~]' | while read -r f; do
+                echo "rm $f  (non-ASCII)"; rm -f "$f"
+              done
+              ;;
+          esac
+
+      - name: Inspect public/ (post-mutation)
+        if: env.MUTATE != 'none'
+        run: .github/scripts/inspect-public.sh "post-mutation"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    if: inputs.deploy
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      # The action collapses every backend rejection into "Deployment cancelled."
+      # Ask the Pages API what the status actually was.
+      - name: Report raw Pages deployment status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          {
+            echo "## Raw Pages status for $SHA"
+            echo '```'
+            echo "--- deploy step outcome: ${{ steps.deployment.outcome }}"
+            echo "--- GET /repos/${{ github.repository }}/pages/deployments/$SHA/status"
+            gh api "repos/${{ github.repository }}/pages/deployments/$SHA/status" 2>&1 || true
+            echo
+            echo "--- latest github-pages deployment statuses"
+            id=$(gh api "repos/${{ github.repository }}/deployments?environment=github-pages&per_page=1" --jq '.[0].id')
+            gh api "repos/${{ github.repository }}/deployments/$id/statuses" \
+              --jq '.[] | "\(.created_at) \(.state) \(.description // "")"' 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if the deployment failed
+        if: steps.deployment.outcome != 'success'
+        run: exit 1
